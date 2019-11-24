@@ -134,7 +134,7 @@ ______________________
 
 #### 堆
 
-堆用于运行时动态分配内存，适用于一些编译期无法完全确定的内存管理任务，以及一些对于栈来说过于庞大的内存管理。需要获取堆内存时应当执行 [`new`](#new) 指令，同时也提供了用于释放内存的 [`delete`](#delete) 指令。
+堆用于运行时动态分配内存，适用于一些编译期无法完全确定的内存管理任务，以及一些对于栈来说过于庞大的内存管理。需要获取堆内存时应当执行 [`new`](#new) 指令。
 
 ### 实例
 
@@ -648,9 +648,9 @@ ff fe 1d c0 # value=-123456
   - 栈地址加载：[`loada`](#loada)
   - 常量加载：[`loadc`](#loadc)、[`push`](#bipush)系列
   - 基于地址的内存读取：[`load`](#iload)系列
-  - 基于地址的内存写入：[`store`](#istore,-dstore,-astore)系列
-  - 基于数组的内存读取：[`aload`](#iaload,-daload,-aaload)系列
-  - 基于数组的内存写入：[`astore`](#iastore,-dastore,-aastore)系列
+  - 基于地址的内存写入：[`store`](#istore-dstore-astore)系列
+  - 基于数组的内存读取：[`aload`](#iaload-daload-aaload)系列
+  - 基于数组的内存写入：[`astore`](#iastore-dastore-aastore)系列
 - 算术运算指令
   - 加法：[`add`](#iadd)系列
   - 减法：[`sub`](#isub)系列
@@ -665,13 +665,13 @@ ff fe 1d c0 # value=-123456
   - 栈内存释放：[`pop`](#pop)系列
   - 栈内存拷贝：[`dup`](#dup)系列
 - 控制转移指令
-  - 条件转移：[`je`、`jne`、`jl`、`jge`、`jg`、`jle`](#je,-jne,-jl,-jge,-jg,-jle)
+  - 条件转移：[`je`、`jne`、`jl`、`jge`、`jg`、`jle`](#je-jne-jl-jge-jg-jle)
   - 无条件转移：[`jmp`](#jmp)
 - 函数操作指令：
   - 函数调用：[`call`](#call)
   - 函数返回：[`ret`](#ret)系列
 - 辅助功能指令
-  - 从标准输入输入：[`print`](#iprint,-dprint,-cprint,-sprint)系列、[`printl`](#printl)
+  - 从标准输入输入：[`print`](#iprint-dprint-cprint-sprint)系列、[`printl`](#printl)
   - 向标准输出输出：[`scan`](#iscan)系列
 
 操作数类型不同的但操作相似的系列指令，会加上类型前缀予以区分：

@@ -491,7 +491,19 @@ F{functions_count-1}:
     ...
 ```
 
-数值支持十进制和十六进制两种表示法。对于无法精确表示的浮点数，推荐十六进制表示。
+其中的数值（`index`、`value`、`operands`、`name_index`、`params_size`、`level`、`F{index}`）支持十进制和十六进制两种表示法：
+
+```
+<number> ::= <decimal> | <hexadecimal>
+<decimal> ::= <digit>{<digit>}
+<hexadecimal> ::= ('0x' | '0X')<hex-digit>{<hex-digit>}
+<digit> ::= '0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'
+<hex-digit> ::= <digit>|'a'|'b'|'c'|'d'|'e'|'f'|'A'|'B'|'C'|'D'|'E'|'F'
+```
+
+对于无法精确表示的浮点数，比较推荐十六进制表示。
+
+`index`均从0开始计数。
 
 常量的`type`有 `I`(int)、`D`(double)、`S`(字符串)
 
@@ -722,6 +734,8 @@ opcode
 
 将单字节值`byte`提升至`int`值`value`后压入栈。
 
+`byte`将按照8位无符号整数解释。
+
 #### ipush
 
 格式： `ipush value(4)` (0x02)
@@ -733,6 +747,8 @@ opcode
 |..., value(1)
 
 将`int`值`value`压入栈。
+
+`value`将按照32位有符号整数解释。
 
 #### pop 
 
@@ -776,6 +792,8 @@ opcode
 
 从栈顶弹出`count`个slot。
 
+`count`按照32位无符号整数解释。
+
 #### dup
 
 格式： `dup` (0x07)
@@ -818,6 +836,8 @@ opcode
 
 加载常量池下标为`index`的常量值`value`，`value`占用的slot数取决于常量的类型，见[运行时数据结构-常量表](#常量表)和[数据类型](#数据类型)。
 
+`index`以16位无符号整数解释。
+
 #### loada
 
 格式： `loada level_diff(2), offset(4)` (0x0a)
@@ -829,6 +849,10 @@ opcode
 |..., address(1)
 
 沿SL链向前移动`level_diff`次（移动到当前栈帧层次差为`level_diff`的栈帧中），加载该栈帧中栈偏移为`offset`的内存的栈地址值`address`。
+
+`level_diff`以16位无符号整数解释。
+
+`offset`以32位有符号整数解释
 
 #### new
 
@@ -857,6 +881,8 @@ opcode
 在栈顶连续分配大小为 `count`个slot 的内存。
 
 内存的值不保证被初始化为0。
+
+`count`以32位无符号整数解释
 
 #### iload
 
@@ -1240,6 +1266,8 @@ C语言中等价于 `*address = value` 。
 
 栈不发生变化。直接进行跳转，之后的控制从当前代码区地址`offset`处开始执行。
 
+`offset`以16位无符号整数解释。
+
 #### je, jne, jl, jge, jg, jle
 
 格式：
@@ -1268,6 +1296,8 @@ C语言中等价于 `*address = value` 。
 
 之后的控制从当前代码区地址`offset`处开始执行。
 
+`offset`以16位无符号整数解释。
+
 #### call
 
 格式：`call index(2)` (0x80)
@@ -1285,6 +1315,8 @@ C语言中等价于 `*address = value` 。
 查找函数表中下标为`index`的函数，将其需要的参数全部弹栈，并在准备好新的内务信息之后将参数再次入栈，控制转移到该函数的开始。
 
 细节参见[虚拟机结构-运行时数据结构-栈](#栈)。
+
+`index`以16位无符号整数解释。
 
 #### ret
 

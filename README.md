@@ -370,7 +370,7 @@ struct Constant_info {
     // INT = 1,
     // DOUBLE = 2
     u1 type;
-    // 根据type决定是String_innfo 还是 Int_info 还是 Double_info
+    // 根据type决定是String_info 还是 Int_info 还是 Double_info
     u1 info[];
 };
 

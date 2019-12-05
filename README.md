@@ -203,7 +203,7 @@ loada 1, 0 #
 dload      # 弹出一个地址值，从该地址加载一个double值，压栈该double值
 d2i        # 弹出一个double值，转换为int值并压栈
 call 0     # 调用fun（函数表中序号为0的函数）
-ipop       # 舍弃栈顶的整型变量
+pop        # 舍弃栈顶的1个slot
 ret        # 直接返回
 ```
 
@@ -315,13 +315,13 @@ iadd
 # 0 |    7   | <--BP # 参数num
 #   | 内务信息 |
 
-iret       # 将栈顶的int型值作为返回值返回
+iret
 # 回到main栈帧：
 # 1 |    ?   | <--SP
 # 0 |    4   | <--BP
 #   | 内务信息 |
 
-ipop       # 舍弃栈顶的整型变量
+pop
 # 0 |    ?   | <--SP,BP
 #   | 内务信息 |
 

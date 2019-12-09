@@ -480,14 +480,14 @@ struct C0_binary_file {
 .functions:
     {index} {name_index} {params_size} {level}
     ...
-F0:
+.F0:
     {index} {opcode} {operands}
     ...
-F1:
+.F1:
     {index} {opcode} {operands}
     ...
 ...
-F{functions_count-1}:
+.F{functions_count-1}:
     {index} {opcode} {operands}
     ...
 ```

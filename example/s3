@@ -1,0 +1,143 @@
+.constants:
+0 D 3.1415926
+1 I 0xbabe
+2 S "fib"
+3 S "main"
+4 S "="
+5 S "<"
+6 S ">="
+.start:
+0 loadc 0
+1 loadc 1
+2 bipush 0
+.functions:
+0 2 1 1    # .F0 fib
+1 3 0 1    # .F1 main
+.F0: # fib
+0    loada 0,0
+1    iload
+2    bipush 0
+3    icmp
+4    jg 7
+5    bipush 0
+6    iret
+7    loada 0,0
+8    iload
+9    bipush 1
+10    icmp
+11    jne 14
+12    bipush 1
+13    iret
+14    loada 0,0
+15    iload
+16    bipush 2
+17    isub
+18    call 0
+19    loada 0,0
+20    iload
+21    bipush 1
+22    isub
+23    call 0
+24    iadd
+25    iret
+.F1: # main
+0    snew 2
+1    loada 1,3
+2    iscan
+3    istore
+4    loada 1,0
+5    dup
+6    dload
+7    bipush 3
+8    i2d
+9    dmul
+10    dstore
+11    loada 1,0
+12    dload
+13    loada 1,3
+14    iload
+15    i2d
+16    dcmp
+17    jge 23
+18    loada 1,3
+19    loada 1,0
+20    dload
+21    d2i
+22    istore
+23    loada 0,0
+24    iload
+25    loada 1,3
+26    iload
+27    icmp
+28    jge 98
+29    loada 0,1
+30    loada 0,0
+31    iload
+32    call 0
+33    istore
+34    loada 0,1
+35    iload
+36    loada 1,2
+37    iload
+38    icmp
+39    jge 66
+40    loadc 2
+41    sprint
+42    bipush 32
+43    cprint
+44    loada 0,0
+45    iload
+46    iprint
+47    bipush 32
+48    cprint
+49    loadc 4
+50    sprint
+51    bipush 32
+52    cprint
+53    loada 0,1
+54    iload
+55    iprint
+56    bipush 32
+57    cprint
+58    loadc 5
+59    sprint
+60    bipush 32
+61    cprint
+62    loadc 1
+63    iprint
+64    printl
+65    jmp 91
+66    loadc 2
+67    sprint
+68    bipush 32
+69    cprint
+70    loada 0,0
+71    iload
+72    iprint
+73    bipush 32
+74    cprint
+75    loadc 4
+76    sprint
+77    bipush 32
+78    cprint
+79    loada 0,1
+80    iload
+81    iprint
+82    bipush 32
+83    cprint
+84    loadc 6
+85    sprint
+86    bipush 32
+87    cprint
+88    loadc 1
+89    iprint
+90    printl
+91    loada 0,0
+92    dup
+93    iload
+94    bipush 1
+95    iadd
+96    istore
+97    jmp 23
+98    bipush 0
+99    iret

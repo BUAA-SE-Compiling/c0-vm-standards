@@ -1,0 +1,22 @@
+.constants:
+0 S "fun"
+1 S "main"
+2 I 0xdeadbeef         # unused
+3 D 0x1122334455667788 # unused
+4 I -123456
+5 D 0x3FF0000000000000 # 1.000000
+.start:
+0    bipush 42
+1    loadc    5
+.functions:
+0 0 1 1                   # .F0 fun
+1 1 0 1                   # .F1 main
+.F0: #fun
+0    loada 0, 0
+1    iload
+2    ineg
+3    iret
+.F1: #main
+0    loadc 4
+1    call 0  #fun
+2    iret

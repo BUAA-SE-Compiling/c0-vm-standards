@@ -313,7 +313,6 @@ struct C0_binary_file {
   - 基于地址的内存写入：[`Tstore`](#Tstore)系列
   - 基于数组的内存读取：[`Taload`](#Taload)系列
   - 基于数组的内存写入：[`Tastore`](#Tastore)系列
-  
   - 堆内存申请：[`new`](#new)
   - 栈内存申请：[`snew`](#snew)
   - 栈内存释放：[`pop`](#popN)系列
@@ -329,7 +328,6 @@ struct C0_binary_file {
 - [控制转移指令](#控制转移指令)
   - 条件转移：[`jCOND`](#jCOND)
   - 无条件转移：[`jmp`](#jmp)
-
   - 函数调用：[`call`](#call)
   - 函数返回：[`ret`](#ret)、[`Tret`](#Tret)系列
 - [辅助功能指令](#辅助功能指令)

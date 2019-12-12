@@ -10,7 +10,9 @@
 
 运行时，虚拟机的数据主要存储在栈、堆和其他必要信息的表中（详情参阅后续章节[虚拟机结构](#虚拟机结构)）。
 
-虚拟机指令的类型识别码大小均为 1 byte，这意味着虚拟机指令最多只有256种。指令的操作数主要来自运行时栈（如[`istore`](#istore)），少部分指令自身会带有操作数（如[`bipush`](#bipush)）。指令操作的结果（如果有），均会压入栈顶。（详情参阅后续章节[指令集](#指令集)）
+虚拟机指令的类型识别码大小均为 1 byte，这意味着虚拟机指令最多只有256种。指令的操作数主要来自运行时栈（如[`istore`](#Tstore)），少部分指令自身会带有操作数（如[`bipush`](#bipush)）。指令操作的结果（如果有），均会压入栈顶。（详情参阅后续章节[指令集](#指令集)）
+
+在本文档最后的附录，会给出各个章节的一些示例。
 
 ## 虚拟机结构
 
@@ -101,8 +103,8 @@
   - 在被调用者栈帧压入内务数据
   - 在被调用者栈帧压入参数
 - 执行被调用者的指令，运算都发生在被调用者栈帧
-- 执行 [`ret`](#ret) 系列指令
-  - 如果函数返回值类型不是 `void`，弹出在被调用者栈帧的栈顶值
+- 执行返回指令（[`ret`](#ret) 或 [`Tret`](#Tret)） 
+  - 如果函数返回值类型不是 `void`（执行的不是[`ret`](#ret)），弹出在被调用者栈帧的栈顶值
   - 根据被调用者栈帧的内务数据恢复数据
   - 舍弃被调用者栈帧，回到调用者栈帧
   - 在调用者栈帧压栈返回值
@@ -136,201 +138,6 @@ ______________________
 #### 堆
 
 堆用于运行时动态分配内存，适用于一些编译期无法完全确定的内存管理任务，以及一些对于栈来说过于庞大的内存管理。需要获取堆内存时应当执行 [`new`](#new) 指令。
-
-### 实例
-
-为了便于理解上述内容，这里用一段 C0 代码举例：
-
-```c++
-double x;
-
-int fun(int num) {
-    int rtv = num/2;
-    return rtv+1;
-}
-
-void main() {
-    x = 7;
-    fun(x);
-    return;
-}
-```
-
-其对应的常量表**可以**是（也可以将`int`型常数0、1、2存入，甚至可以将7转换为`double`型常量7.0存入）：
-
-| index |  type  | value  |
-| :---: | :----: | :----: |
-|   0   | STRING | "fun"  |
-|   1   | STRING | "main" |
-|   2   |  INT   |   7    |
-
-其对应的函数表**可以**是：
-
-| index | name | size of parameters（单位 : slot） | level |
-| :---: | :--: | :-------------------------------: | :---: |
-|   0   | fun  |                 1                 |   1   |
-|   1   | main |                 0                 |   1   |
-
-其启动代码是为全局变量`x`分配空间：
-
-```assembly
-snew 2 # 在栈上分配2个slot的内存（double x）
-```
-
-fun的指令序列**可以**是：
-
-```assembly
-loada 0, 0 # 加载fun栈帧（作用域层次差为0的栈帧）中相对于BP偏移为0的内存的地址
-iload      # 弹出栈顶的地址值，从该地址加载一个int值，压栈该int值
-           # 以上两行即加载局部变量（函数传参）num的值
-ipush 2    # 压栈int型常值2
-idiv       # 弹出两个int型值，并进行int型除法运算，压栈结果
-loada 0, 1 # 加载rtv的地址
-iload      # 压栈rtv的值
-ipush 1 
-iadd
-iret       # 将栈顶的int型值作为返回值返回
-```
-
-main的指令序列为：
-
-```assembly
-loada 1, 0 # 加载全局栈帧（作用域层次差为1的栈帧）中相对于BP偏移为0的内存的地址
-loadc 2      # 加载常量表中的2号常量，int型的7
-i2d        # 弹出一个int值，转换为double值并压栈
-dstore     # 弹出一个double值，弹出一个地址值，将double存入该地址
-loada 1, 0 #
-dload      # 弹出一个地址值，从该地址加载一个double值，压栈该double值
-d2i        # 弹出一个double值，转换为int值并压栈
-call 0     # 调用fun（函数表中序号为0的函数）
-pop        # 舍弃栈顶的1个slot
-ret        # 直接返回
-```
-
-从进入main到返回，栈帧变化为，栈左侧数据代表相对于BP的偏移：
-
-```assembly
-# main栈帧，刚进入时：
-# 0 |    ?    | <--SP,BP
-#   | 内务信息 |
-#0,1|    ?    | # 未初始化的变量x
-#   | 内务信息 |
-# 上方是main栈帧，下方是全局栈帧，之后省略全局栈帧
-
-loada 1, 0
-# 1 |    ?    | <--SP
-# 0 |    &x   | <--BP
-#   | 内务信息 |
-
-loadc 2
-# 2 |    ?    | <--SP
-# 1 |    7    |
-# 0 |    &x   | <--BP
-#   | 内务信息 |
-
-i2d
-# 3 |    ?   | <--SP
-#1,2|   7.0  |
-# 0 |    &x  | <--BP
-#   | 内务信息 |
-
-dstore
-# 0 |    ?    | <--SP,BP
-#   | 内务信息 |
-# 此时全局栈帧偏移为0和1的2个slot已经被赋值为了7.0
-
-loada 1, 0
-# 1 |    ?    | <--SP
-# 0 |    &x   | <--BP
-#   | 内务信息 |
-
-dload
-# 2 |    ?   | <--SP
-#0,1|   7.0  | <--BP
-#   | 内务信息 |
-
-d2i
-# 1 |    ?   | <--SP
-# 0 |    7   | <--BP
-#   | 内务信息 |
-
-call 0
-# 1 |    ?   | <--SP
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-#   | 内务信息 |
-# 下方是空空的main栈帧，之后省略main栈帧
-
-loada 0, 0
-# 2 |    ?   | <--SP
-# 1 |  &num  | 
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-iload
-# 2 |    ?   | <--SP
-# 1 |    7   | 
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-ipush 2
-# 3 |    ?   | <--SP
-# 2 |    2   |
-# 1 |    7   | 
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-idiv
-# 2 |    ?   | <--SP
-# 1 |    3   |       # 变量rtv
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-loada 0, 1
-# 3 |    ?   | <--SP
-# 2 |  &rtv  |
-# 1 |    3   |       # 变量rtv
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-iload
-# 3 |    ?   | <--SP
-# 2 |    3   |
-# 1 |    3   |       # 变量rtv
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-ipush 1
-# 4 |    ?   | <--SP
-# 3 |    1   |
-# 2 |    3   |
-# 1 |    3   |       # 变量rtv
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-iadd
-# 3 |    ?   | <--SP
-# 2 |    4   |
-# 1 |    3   |       # 变量rtv
-# 0 |    7   | <--BP # 参数num
-#   | 内务信息 |
-
-iret
-# 回到main栈帧：
-# 1 |    ?   | <--SP
-# 0 |    4   | <--BP
-#   | 内务信息 |
-
-pop
-# 0 |    ?   | <--SP,BP
-#   | 内务信息 |
-
-ret
-# 回到全局栈帧
-# 2 |    ?    | <--SP
-#0,1|   7.0   | <--BP # 变量x
-#   | 内务信息 |
-```
 
 ## 输入文件格式
 
@@ -407,7 +214,7 @@ struct C0_binary_file {
 
 即使启动代码、常量表或函数表是空的，也必须有`instructions_count`、`constants_count`和`functions_count`，且值为`0x0000`。
 
-### 解析过程
+### 二进制文件解析过程
 
 顺序读取文件的字节，顺序并递归地校验/识别`C0_binary_file`的组成：
 
@@ -429,42 +236,6 @@ struct C0_binary_file {
 解析过程中如果报错，或是文件不完整无法解析，都会导致停机。
 
 如果解析完`functions`还有剩余的内容，也会报错。
-
-#### 示例
-
-下面是一个输入文件的二进制节选，只截取了开头的一部分：
-
-```assembly
-43 30 3a 29 00 00 00 01 00 02 00 00 03 78 79 7a 01 00 00 01 ff 00 01 02 de ad be ef ...
-```
-
-首先解析前四个字节为`u4`类型，由于多字节基础类型以大端序排列，根据`43 30 3a 29`知其值是`0x43303a29`，和`magic`的要求匹配。
-
-之后解析`u4`类型的`version`，可知`version=0x0000001`。
-
-之后解析`00 02` 为 `u2`类型，得到`constant_count=0x0002`，这说明常量表只有2个元素。
-
-接下来该解析两个`Constant_info`。
-
-`Constant_info`的第一个元素是单字节的`Constant_info.type`，根据下一个字节是`00`，可知`type=0x00`，因此这是一个`String_info`。
-
-`String_info`的前两个字节是`length`，根据`00 03`知`length=0x0003`，因此接下来要解析一个长度为3的字符串。
-
-由于`value`是`u1`的数组，因此逐字节解析为`u1`，解析3个即可，跟根据`78 79 7a`得到字符串为`"xyz"`。
-
-到这里解析完了第一个`Constant_info`，开始解析下一个。
-
-下一个字节是`01`，可知`type=0x01`，这是一个`Int_info`。
-
-`Int_info`只有一个`u4`类型的元素，因此还需要解析4个字节，由大端序排列的`00 00 01 ff`知`value=0x000001ff`，即十进制中的`511`。
-
-到这里常量池就解析完了。
-
-之后解析`Start_code_info`，首先是`u2`类型的`instructions_count`，可以得知其值为`0x0001`。说明初始化代码总共有1条指令。
-
-首先解析一个字节`02`，得知这是一个[`ipush`](#ipush)指令，其操作数只有一个，该操作数占4字节，因此接下来以大端序解析四个字节`de ad be ef`，得到指令的完整组成为`ipush 0xdeadbeef`。
-
-由于启动代码总长是5字节，因此到这里启动代码就解析完了。之后解析函数表，与解析常量表和启动代码的过程类似，不再赘述。
 
 ### 文本文件(.s0)格式
 
@@ -508,190 +279,49 @@ struct C0_binary_file {
 
 常量的`type`有 `I`(int)、`D`(double)、`S`(字符串)
 
-### 示例
-
-编译`.c0`：
-
-```c++
-int g0 = 42;
-double g1 = 1.0;
-
-int fun(int num) {
-    return -num;
-}
-
-int main() {
-    return fun(-123456);
-}
-```
-
-得到`.s0`：
-
-```assembly
-.constants:
-0 S "fun"
-1 S "main"
-2 I 0xdeadbeef         # unused
-3 D 0x1122334455667788 # unused
-4 I -123456
-5 D 0x3FF0000000000000 # 1.000000
-.start:
-0    bipush 42
-1    loadc    5
-.functions:
-0 0 1 1                   # .F0 fun
-1 1 0 1                   # .F1 main
-.F0: #fun
-0    loada 0, 0
-1    iload
-2    ineg
-3    iret
-.F1: #main
-0    loadc 4
-1    call 0  #fun
-2    iret
-```
-
-得到`.o0`（手动添加了换行和注解）：
-
-```assembly
-# magic
-43 30 3a 29 
-# version
-00 00 00 01 
-# constants_count
-00 06       
-# constants[0]
-00       # type=STRING
-00 03    # length=3
-66 75 6e # value="fun"
-# constants[1]
-00          # type=STRING
-00 04       # length=4
-6d 61 69 6e # value="main"
-# constants[2]
-01          # type=INT
-de ad be ef # value=0xdeadbeef
-# constants[3]
-02                      # type=DOUBLE
-11 22 33 44 55 66 77 88 # value=0x1122334455667788
-# constants[4]
-01          # type=INT
-ff fe 1d c0 # value=-123456
-# constants[5]
-02                      # type=DOUBLE
-3f f0 00 00 00 00 00 00 # value=1.000000
-# start_code
-00 02    # instructions_count=0x0002
-    # start_code.instructions
-    01 2a    # bipush 42
-    09 00 05 # loadc 5
-# functions_count
-00 02
-# function[0]
-00 00 # name_index
-00 01 # params_length
-00 01 # level
-00 04 # instructions_count
-    # function[0].instructions
-    0a 00 00 00 00 00 00 # loada 0, 0
-    10                   # iload
-    40                   # ineg
-    89                   # iret
-# function[1]
-00 01 # name_index
-00 00 # params_length
-00 01 # level
-00 03 # instructions_count
-    # function[1].instructions
-    09 00 04 # loadc 4
-    80 00 00 # call 0
-    89       # iret
-```
-
-极端优化`.s0`：
-
-```assembly
-.constants:
-0 S "main"
-1 I 123456
-.start:
-.functions:
-0 0 0 1    # .F0 main
-.F0: #main
-0    loadc 1
-1    iret
-```
-
-极端优化`.o0`：
-
-```assembly
-# magic
-43 30 3a 29 
-# version
-00 00 00 01 
-# constants_count
-00 02
-# constants[0]
-00          # type=STRING
-00 04       # length=4
-6d 61 69 6e # value="main"
-# constants[1]
-01          # type=INT
-00 01 e2 40 # value=123456
-# start_code
-00 00    # instructions_count
-# functions_count
-00 01
-# function[0]
-00 00 # name_index
-00 00 # params_length
-00 01 # level
-00 02 # instructions_count
-    # function[0].instructions
-    09 00 01 # loadc 1
-    89       # iret
-```
-
 ## 指令集
+
+### 概述
 
 本虚拟机的指令集主要包括以下指令：
 
-- 内存读写指令：
+- 内存操作指令：
   - 栈地址加载：[`loada`](#loada)
-  - 常量加载：[`loadc`](#loadc)、[`push`](#bipush)系列
-  - 基于地址的内存读取：[`load`](#iload)系列
-  - 基于地址的内存写入：[`store`](#istore-dstore-astore)系列
-  - 基于数组的内存读取：[`aload`](#iaload-daload-aaload)系列
-  - 基于数组的内存写入：[`astore`](#iastore-dastore-aastore)系列
-- 算术运算指令
-  - 加法：[`add`](#iadd)系列
-  - 减法：[`sub`](#isub)系列
-  - 乘法：[`mul`](#imul)系列
-  - 除法：[`div`](#idiv)系列
-  - 取负：[`neg`](#ineg)系列
-  - 比较：[`cmp`](#icmp)系列
-- 类型转换指令：[`i2d`](#i2d)、[`i2c`](#i2c)、[`d2i`](#d2i)
-- 内存管理指令：
+  - 常量加载：[`loadc`](#loadc)、[`Tpush`](#bipush)系列
+  - 基于地址的内存读取：[`Tload`](#Tload)系列
+  - 基于地址的内存写入：[`Tstore`](#Tstore)系列
+  - 基于数组的内存读取：[`Taload`](#Taload)系列
+  - 基于数组的内存写入：[`Tastore`](#Tastore)系列
+  
   - 堆内存申请：[`new`](#new)
   - 栈内存申请：[`snew`](#snew)
-  - 栈内存释放：[`pop`](#pop)系列
+  - 栈内存释放：[`pop`](#popN)系列
   - 栈内存拷贝：[`dup`](#dup)系列
+  
+- 算术运算指令
+  - 加法：[`Tadd`](#iadd)系列
+  - 减法：[`Tsub`](#isub)系列
+  - 乘法：[`Tmul`](#imul)系列
+  - 除法：[`Tdiv`](#idiv)系列
+  - 取负：[`Tneg`](#ineg)系列
+  - 比较：[`Tcmp`](#icmp)系列
+- 类型转换指令：[`i2d`](#i2d)、[`i2c`](#i2c)、[`d2i`](#d2i)
 - 控制转移指令
-  - 条件转移：[`je`、`jne`、`jl`、`jge`、`jg`、`jle`](#je-jne-jl-jge-jg-jle)
+  - 条件转移：[`jCOND`](#jCOND)
   - 无条件转移：[`jmp`](#jmp)
-- 函数操作指令：
+  
   - 函数调用：[`call`](#call)
-  - 函数返回：[`ret`](#ret)系列
+  - 函数返回：[`ret`](#ret)、[`Tret`](#Tret)系列
 - 辅助功能指令
-  - 从标准输入输入：[`print`](#iprint-dprint-cprint-sprint)系列、[`printl`](#printl)
-  - 向标准输出输出：[`scan`](#iscan)系列
+  - 写标准输出：[`Tprint`](#Tprint)系列、[`sprint`](#sprint)、[`printl`](#printl)
+  - 读标准输入：[`Tscan`](#Tscan)系列
 
-操作数类型不同的但操作相似的系列指令，会加上类型前缀予以区分：
+上述部分指令的有一个前缀`T`，这说明它是一系列**操作数数据类型不同**的但**操作相似**的指令，`T`的可能取值有：
 
-- `i`: `int`
-- `d`: `double`
-- `a`: address，地址
+- `i`: `int`，1 slot 的有符号整数
+- `d`: `double`， 2 slot 的 IEEE 754 浮点数
+- `c`: `char`，1 slot 的无符号整数，只取最低字节
+- `a`: 地址， 1 slot 的无符号整数
 
 一条指令由指令名`opcode`和操作数序列表示，二进制表示中的`opcode`只占1个字节。
 
@@ -709,6 +339,8 @@ opcode
 # 代表指令执行前后栈内元素的变化，从左到右画出栈底到栈顶的内容
 # operand是操作数的名字，size是操作数占用的slot数
 # result是结果的名字，size是结果占用的slot数
+# 如果size写为T而不是数值，则说明其占用内存和指令名中的T类型一致
+# 如果size写为param的名字，则说明其由指令的参数决定
 栈变化： 
 |..., operand1(size1), operand2(size2)
 |..., result1(size1), result2(size2)
@@ -716,6 +348,8 @@ opcode
 # desciption，该指令的文本描述
 这是一个指令
 ```
+
+### 内存操作指令
 
 #### nop
 
@@ -751,47 +385,23 @@ opcode
 
 `value`将按照32位有符号整数解释。
 
-#### pop 
+#### popN
 
-格式： `pop` (0x04)
+格式： 
 
-栈变化：
-
-|..., value(1)
-
-|...
-
-从栈顶弹出1个slot。
-
-#### pop2
-
-格式： `pop2` (0x05)
+- `pop` (0x04)
+- `pop2` (0x05)
+- `popn count(4)` (0x06)
 
 栈变化：
 
-|..., value(2)
-
-|...
-
-或栈变化：
-
-|..., value1(1), value2(1)
-
-|...
-
-从栈顶弹出2个slot。
-
-#### popn
-
-格式： `popn count(4)` (0x06)
-
-栈变化：
-
-|..., value(count)
+|..., slots(count)
 
 |...
 
 从栈顶弹出`count`个slot。
+
+对于`pop`，`count`取1；对于`pop2`，`count`取2。
 
 `count`按照32位无符号整数解释。
 
@@ -837,9 +447,10 @@ opcode
 
 加载常量池下标为`index`的常量值`value`，`value`占用的slot数取决于常量的类型：
 
-- `int`：1 slot 的值
-- `double`：2 slot的值
-- 数组： 1 slot 的值，代表数组首地址
+- `int`：1 slot 的数值
+- `double`：2 slot的数值
+- 字符串：1 slot的地址值
+- 数组： 1 slot 的地址值
 
 数据类型相关的内容见[运行时数据结构-常量表](#常量表)和[数据类型](#数据类型)。
 
@@ -891,113 +502,85 @@ opcode
 
 `count`以32位无符号整数解释
 
-#### iload
+#### Tload
 
-格式： `iload` (0x10)
+格式： 
 
-栈变化：
-
-|..., address(1)
-
-|..., value(1)
-
-从内存地址`address`处加载一个`int`值。
-
-`address`可能是栈地址也可能是堆地址。
-
-#### dload
-
-格式： `dload` (0x11)
+- `iload` (0x10)
+- `dload` (0x11)
+- `aload` (0x12)
 
 栈变化：
 
 |..., address(1)
 
-|..., value(2)
+|..., value(T)
 
-从内存地址`address`处加载一个`double`值。
+从内存地址`address`处加载一个指定类型的值。
 
 `address`可能是栈地址也可能是堆地址。
 
-#### aload
+#### Taload
 
-格式： `aload` (0x12)
+格式：
+
+- `iaload` (0x18)
+- `daload` (0x19)
+- `aaload` (0x1a)
 
 栈变化：
-
-|..., address(1)
-
-|..., value(1)
-
-从内存地址`address`处加载一个地址值。
-
-`address`可能是栈地址也可能是堆地址。
-
-#### iaload, daload, aaload
-
-格式： `iaload` (0x18) / `daload` (0x19) / `aaload` (0x1a)
-
-`iaload` / `aaload` 栈变化：
 
 |..., address(1), index(1)
 
-|..., value(1)
+|..., value(T)
 
-`daload` 栈变化：
-
-|..., address(1), index(1)
-
-|..., value(2)
-
-将地址`address`视为数组首地址，加载数组下标为`index`处的元素值`value`。
+将地址`address`视为数组首地址，加载数组下标为`index`处的指定类型的值`value`。
 
 可用于等价翻译 `address[index]` 。
 
 `address`可能是栈地址也可能是堆地址。
 
-#### istore, dstore, astore
+#### Tstore
 
-格式： `istore` (0x20) / `dstore` (0x21) / `astore` (0x22)
+格式：
 
-`istore` /  `astore` 栈变化：
+- `istore` (0x20)
+- `dstore` (0x21)
+- `astore` (0x22)
 
-|..., address(1), value(1)
+栈变化：
 
-|...
-
- `dstore`栈变化：
-
-|..., address(1), value(2)
+|..., address(1), value(T)
 
 |...
 
-将 `int`/`double`/地址 值`value`存入内存地址`address`处。
+将指定类型的值`value`存入内存地址`address`处。
 
 C语言中等价于 `*address = value` 。
 
 `address`可能是栈地址也可能是堆地址。
 
-#### iastore, dastore, aastore
+#### Tastore
 
-格式： `iastore` (0x28) / `dastore` (0x29) / `aastore` (0x2a)
+格式： 
 
- `iastore` /  `aastore` 栈变化：
+- `iastore` (0x28)
+- `dastore` (0x29)
+- `aastore` (0x2a)
 
-|..., address(1), index(1), value(1)
+栈变化：
 
-|...
-
- `dastore`栈变化：
-
-|..., address(1), index(1), value(2)
+|..., address(1), index(1), value(T)
 
 |...
 
-将地址`address`视为数组首地址，将 `int`/`double`/地址 值`value`存入数组下标为`index`处。
+将地址`address`视为数组首地址，将指定类型的值`value`存入数组下标为`index`处。
 
 可用于等价翻译 `address[index] = value` 。
 
 `address`可能是栈地址也可能是堆地址。
+
+### 算术运算指令
 
 #### iadd
 
@@ -1220,6 +803,8 @@ C语言中等价于 `*address = value` 。
 - 如果 `lhs` 较大，则`result`是1
 - 如果 `rhs` 较大，则`result`是-1
 
+### 类型转换指令
+
 #### i2d
 
 格式： `i2d` (0x60)
@@ -1267,6 +852,8 @@ C语言中等价于 `*address = value` 。
 
 这个操作可能存在精度损失，也可能改变符号。
 
+### 控制转移指令
+
 #### jmp
 
 格式：`jmp offset(2) ` (0x70)
@@ -1275,7 +862,7 @@ C语言中等价于 `*address = value` 。
 
 `offset`以16位无符号整数解释。
 
-#### je, jne, jl, jge, jg, jle
+#### jCOND
 
 格式：
 
@@ -1339,39 +926,41 @@ C语言中等价于 `*address = value` 。
 
 细节参见[虚拟机结构-运行时数据结构-栈](#栈)。
 
-#### iret, dret, aret
+#### Tret
 
-格式：`iret` (0x89) / `dret` (0x8a) / `aret` (0x8b)
+格式：
+
+- `iret` (0x89)
+- `dret` (0x8a)
+- `aret` (0x8b)
 
 被调用者栈被销毁：
 
-|..., value(?)
+|..., rtv(T)
 
 调用者栈变化：
 
 |...
 
-|..., value(?)
+|..., rtv(T)
 
-对于 `iret` 和 `aret`，`value` 占 1 slot；对于`dret`，`value` 占 2 slots。
-
-将栈顶的 `int`/`double`/地址 值`value`弹栈作为返回值，清理栈，恢复内务信息，将返回值`value`压栈，将控制转移到原来函数的`call`指令的下一条指令。
+将栈顶指定类型的值`rtv`弹栈作为返回值，清理栈，恢复内务信息，将返回值`rtv`压栈，将控制转移到原来函数的`call`指令的下一条指令。
 
 细节参见[虚拟机结构-运行时数据结构-栈](#栈)。
 
-#### iprint, dprint, cprint, sprint
+### 辅助功能指令
 
-格式：`iprint` (0xa0) / `dprint` (0xa1) / `cprint` (0xa2) / `sprint` (0xa3)
+#### Tprint
 
-`iprint` / `cprint` / `sprint` 栈变化：
+格式：
 
-|..., value(1)
+- `iprint` (0xa0)
+- `dprint` (0xa1)
+- `cprint` (0xa2)
 
-|...
+栈变化：
 
-`dprint `栈变化：
-
-|..., value(2)
+|..., value(T)
 
 |...
 
@@ -1380,7 +969,18 @@ C语言中等价于 `*address = value` 。
 - `iprint`： `value`的十进制表示，类似 `printf("%d",value)`。
 - `dprint`： `value`的十进制表示保留六位小数，类似 `printf("%.6lf",value)`。
 - `cprint`： `value`最低字节对应的ascii字符，类似 `putchar(value)`。
-- `sprint`： 以`value`为首地址的字符串，类似 `printf("%s",str)`。
+
+#### sprint
+
+格式： `sprint` (0xa3)
+
+栈变化：
+
+|..., addr(1)
+
+|...
+
+弹出栈顶的`addr`，将其视为一个字符串的首地址，对每个 slot 的值通过 `cprint` 输出，直到 slot 值是 0；类似 `printf("%s",str)`。
 
 #### printl
 
@@ -1388,47 +988,25 @@ C语言中等价于 `*address = value` 。
 
 栈无变化。输出换行。
 
-#### iscan
+#### Tscan
 
-格式：`iscan` (0xb0)
+格式：
 
-栈变化：
-
-|...
-
-|..., value(1)
-
-从标准输入解析一个可有符号的十进制整数，将其转换为`int`得到`value`，将`value`压入栈。
-
-类似`scanf("%d", &value)`。
-
-#### dscan
-
-格式：`dscan` (0xb1)
+- `iscan` (0xb0) 
+- `dscan` (0xb1)
+- `cscan ` (0xb2)
 
 栈变化：
 
 |...
 
-|..., value(2)
+|..., value(T)
 
-从标准输入解析一个可有符号的十进制浮点数，将其截断至`double`值域得到`value`，将`value`压入栈。
+从标准输入根据一定格式解析字符，并压栈解析得到的值`value`：
 
-类似`scanf("%lf", &value)`。
-
-#### cscan
-
-格式：`cscan ` (0xb2)
-
-栈变化：
-
-|...
-
-|..., value(1)
-
-从标准输入读取一个字节值`value`，将`value`压入栈。
-
-类似`value = getchar()`。
+- `iscan`： 一个可有符号的十进制整数，将其转换为`int`得到`value`。
+- `dscan`： 一个可有符号的十进制浮点数，将其截断至`double`值域得到`value`。
+- `cscan`： 一个字节值`value`
 
 ## 运行错误/异常
 
@@ -1436,17 +1014,9 @@ C语言中等价于 `*address = value` 。
 
 ### 错误集
 
-#### File Not Existed
-
-提供给虚拟机的输入文件不存在。
-
 #### Invalid File
 
 输入的格式文件不合法，是解析输入文件时因为属性错误或文件残缺导致的错误。
-
-#### Unsupported Version
-
-输入文件的版本比当前虚拟机高，无法运行。
 
 #### Main Function Not Found
 
@@ -1490,3 +1060,384 @@ C语言中等价于 `*address = value` 。
 #### IO Error
 
 各种输入输出导致的错误，主要是因为遇到文件尾。
+
+## 附录
+
+### 运行时示例
+
+这里用一段 C0 代码举例：
+
+```c++
+double x;
+
+int fun(int num) {
+    int rtv = num/2;
+    return rtv+1;
+}
+
+void main() {
+    x = 7;
+    fun(x);
+    return;
+}
+```
+
+其对应的常量表**可以**是（也可以将`int`型常数0、1、2存入，甚至可以将7转换为`double`型常量7.0存入）：
+
+| index |  type  | value  |
+| :---: | :----: | :----: |
+|   0   | STRING | "fun"  |
+|   1   | STRING | "main" |
+|   2   |  INT   |   7    |
+
+其对应的函数表**可以**是：
+
+| index | name | size of parameters（单位 : slot） | level |
+| :---: | :--: | :-------------------------------: | :---: |
+|   0   | fun  |                 1                 |   1   |
+|   1   | main |                 0                 |   1   |
+
+其启动代码是为全局变量`x`分配空间：
+
+```assembly
+snew 2 # 在栈上分配2个slot的内存（double x）
+```
+
+fun的指令序列**可以**是：
+
+```assembly
+loada 0, 0 # 加载fun栈帧（作用域层次差为0的栈帧）中相对于BP偏移为0的内存的地址
+iload      # 弹出栈顶的地址值，从该地址加载一个int值，压栈该int值
+           # 以上两行即加载局部变量（函数传参）num的值
+ipush 2    # 压栈int型常值2
+idiv       # 弹出两个int型值，并进行int型除法运算，压栈结果
+loada 0, 1 # 加载rtv的地址
+iload      # 压栈rtv的值
+ipush 1 
+iadd
+iret       # 将栈顶的int型值作为返回值返回
+```
+
+main的指令序列为：
+
+```assembly
+loada 1, 0 # 加载全局栈帧（作用域层次差为1的栈帧）中相对于BP偏移为0的内存的地址
+loadc 2      # 加载常量表中的2号常量，int型的7
+i2d        # 弹出一个int值，转换为double值并压栈
+dstore     # 弹出一个double值，弹出一个地址值，将double存入该地址
+loada 1, 0 #
+dload      # 弹出一个地址值，从该地址加载一个double值，压栈该double值
+d2i        # 弹出一个double值，转换为int值并压栈
+call 0     # 调用fun（函数表中序号为0的函数）
+pop        # 舍弃栈顶的1个slot
+ret        # 直接返回
+```
+
+从进入main到返回，栈帧变化为，栈左侧数据代表相对于BP的偏移：
+
+```assembly
+# main栈帧，刚进入时：
+# 0 |    ?    | <--SP,BP
+#   | 内务信息 |
+#0,1|    ?    | # 未初始化的变量x
+#   | 内务信息 |
+# 上方是main栈帧，下方是全局栈帧，之后省略全局栈帧
+
+loada 1, 0
+# 1 |    ?    | <--SP
+# 0 |    &x   | <--BP
+#   | 内务信息 |
+
+loadc 2
+# 2 |    ?    | <--SP
+# 1 |    7    |
+# 0 |    &x   | <--BP
+#   | 内务信息 |
+
+i2d
+# 3 |    ?   | <--SP
+#1,2|   7.0  |
+# 0 |    &x  | <--BP
+#   | 内务信息 |
+
+dstore
+# 0 |    ?    | <--SP,BP
+#   | 内务信息 |
+# 此时全局栈帧偏移为0和1的2个slot已经被赋值为了7.0
+
+loada 1, 0
+# 1 |    ?    | <--SP
+# 0 |    &x   | <--BP
+#   | 内务信息 |
+
+dload
+# 2 |    ?   | <--SP
+#0,1|   7.0  | <--BP
+#   | 内务信息 |
+
+d2i
+# 1 |    ?   | <--SP
+# 0 |    7   | <--BP
+#   | 内务信息 |
+
+call 0
+# 1 |    ?   | <--SP
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+#   | 内务信息 |
+# 下方是空空的main栈帧，之后省略main栈帧
+
+loada 0, 0
+# 2 |    ?   | <--SP
+# 1 |  &num  | 
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+iload
+# 2 |    ?   | <--SP
+# 1 |    7   | 
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+ipush 2
+# 3 |    ?   | <--SP
+# 2 |    2   |
+# 1 |    7   | 
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+idiv
+# 2 |    ?   | <--SP
+# 1 |    3   |       # 变量rtv
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+loada 0, 1
+# 3 |    ?   | <--SP
+# 2 |  &rtv  |
+# 1 |    3   |       # 变量rtv
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+iload
+# 3 |    ?   | <--SP
+# 2 |    3   |
+# 1 |    3   |       # 变量rtv
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+ipush 1
+# 4 |    ?   | <--SP
+# 3 |    1   |
+# 2 |    3   |
+# 1 |    3   |       # 变量rtv
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+iadd
+# 3 |    ?   | <--SP
+# 2 |    4   |
+# 1 |    3   |       # 变量rtv
+# 0 |    7   | <--BP # 参数num
+#   | 内务信息 |
+
+iret
+# 回到main栈帧：
+# 1 |    ?   | <--SP
+# 0 |    4   | <--BP
+#   | 内务信息 |
+
+pop
+# 0 |    ?   | <--SP,BP
+#   | 内务信息 |
+
+ret
+# 回到全局栈帧
+# 2 |    ?    | <--SP
+#0,1|   7.0   | <--BP # 变量x
+#   | 内务信息 |
+```
+
+### 二进制文件解析示例
+
+下面是一个输入文件的二进制节选，只截取了开头的一部分：
+
+```assembly
+43 30 3a 29 00 00 00 01 00 02 00 00 03 78 79 7a 01 00 00 01 ff 00 01 02 de ad be ef ...
+```
+
+首先解析前四个字节为`u4`类型，由于多字节基础类型以大端序排列，根据`43 30 3a 29`知其值是`0x43303a29`，和`magic`的要求匹配。
+
+之后解析`u4`类型的`version`，可知`version=0x0000001`。
+
+之后解析`00 02` 为 `u2`类型，得到`constant_count=0x0002`，这说明常量表只有2个元素。
+
+接下来该解析两个`Constant_info`。
+
+`Constant_info`的第一个元素是单字节的`Constant_info.type`，根据下一个字节是`00`，可知`type=0x00`，因此这是一个`String_info`。
+
+`String_info`的前两个字节是`length`，根据`00 03`知`length=0x0003`，因此接下来要解析一个长度为3的字符串。
+
+由于`value`是`u1`的数组，因此逐字节解析为`u1`，解析3个即可，跟根据`78 79 7a`得到字符串为`"xyz"`。
+
+到这里解析完了第一个`Constant_info`，开始解析下一个。
+
+下一个字节是`01`，可知`type=0x01`，这是一个`Int_info`。
+
+`Int_info`只有一个`u4`类型的元素，因此还需要解析4个字节，由大端序排列的`00 00 01 ff`知`value=0x000001ff`，即十进制中的`511`。
+
+到这里常量池就解析完了。
+
+之后解析`Start_code_info`，首先是`u2`类型的`instructions_count`，可以得知其值为`0x0001`。说明初始化代码总共有1条指令。
+
+首先解析一个字节`02`，得知这是一个[`ipush`](#ipush)指令，其操作数只有一个，该操作数占4字节，因此接下来以大端序解析四个字节`de ad be ef`，得到指令的完整组成为`ipush 0xdeadbeef`。
+
+由于启动代码总长是5字节，因此到这里启动代码就解析完了。之后解析函数表，与解析常量表和启动代码的过程类似，不再赘述。
+
+### 文本汇编与二进制文件转换示例
+
+编译`.c0`：
+
+```c++
+int g0 = 42;
+double g1 = 1.0;
+
+int fun(int num) {
+    return -num;
+}
+
+int main() {
+    return fun(-123456);
+}
+```
+
+得到`.s0`：
+
+```assembly
+.constants:
+0 S "fun"
+1 S "main"
+2 I 0xdeadbeef         # unused
+3 D 0x1122334455667788 # unused
+4 I -123456
+5 D 0x3FF0000000000000 # 1.000000
+.start:
+0    bipush 42
+1    loadc    5
+.functions:
+0 0 1 1                   # .F0 fun
+1 1 0 1                   # .F1 main
+.F0: #fun
+0    loada 0, 0
+1    iload
+2    ineg
+3    iret
+.F1: #main
+0    loadc 4
+1    call 0  #fun
+2    iret
+```
+
+得到`.o0`（手动添加了换行和注解）：
+
+```assembly
+# magic
+43 30 3a 29 
+# version
+00 00 00 01 
+# constants_count
+00 06       
+# constants[0]
+00       # type=STRING
+00 03    # length=3
+66 75 6e # value="fun"
+# constants[1]
+00          # type=STRING
+00 04       # length=4
+6d 61 69 6e # value="main"
+# constants[2]
+01          # type=INT
+de ad be ef # value=0xdeadbeef
+# constants[3]
+02                      # type=DOUBLE
+11 22 33 44 55 66 77 88 # value=0x1122334455667788
+# constants[4]
+01          # type=INT
+ff fe 1d c0 # value=-123456
+# constants[5]
+02                      # type=DOUBLE
+3f f0 00 00 00 00 00 00 # value=1.000000
+# start_code
+00 02    # instructions_count=0x0002
+    # start_code.instructions
+    01 2a    # bipush 42
+    09 00 05 # loadc 5
+# functions_count
+00 02
+# function[0]
+00 00 # name_index
+00 01 # params_length
+00 01 # level
+00 04 # instructions_count
+    # function[0].instructions
+    0a 00 00 00 00 00 00 # loada 0, 0
+    10                   # iload
+    40                   # ineg
+    89                   # iret
+# function[1]
+00 01 # name_index
+00 00 # params_length
+00 01 # level
+00 03 # instructions_count
+    # function[1].instructions
+    09 00 04 # loadc 4
+    80 00 00 # call 0
+    89       # iret
+```
+
+极端优化`.s0`：
+
+```assembly
+.constants:
+0 S "main"
+1 I 123456
+.start:
+.functions:
+0 0 0 1    # .F0 main
+.F0: #main
+0    loadc 1
+1    iret
+```
+
+极端优化`.o0`：
+
+```assembly
+# magic
+43 30 3a 29 
+# version
+00 00 00 01 
+# constants_count
+00 02
+# constants[0]
+00          # type=STRING
+00 04       # length=4
+6d 61 69 6e # value="main"
+# constants[1]
+01          # type=INT
+00 01 e2 40 # value=123456
+# start_code
+00 00    # instructions_count
+# functions_count
+00 01
+# function[0]
+00 00 # name_index
+00 00 # params_length
+00 01 # level
+00 02 # instructions_count
+    # function[0].instructions
+    09 00 01 # loadc 1
+    89       # iret
+```
+
+
+
